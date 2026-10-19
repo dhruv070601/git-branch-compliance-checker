@@ -1,0 +1,38 @@
+name: Git Branch Compliance Checker
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Repository to audit (OWNER/NAME)
+        required: true
+        default: dhruv070601/git-branch-compliance-checker
+permissions:
+  contents: read
+  administration: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Audit repository governance
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_REPOSITORY: ${{ inputs.repository || github.repository }}
+        run: python -m branch_audit.checker --repo "$TARGET_REPOSITORY" --out-dir compliance-results
+      - name: Upload compliance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-compliance-report
+          path: compliance-results/
+          if-no-files-found: ignore
